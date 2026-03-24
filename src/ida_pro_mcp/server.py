@@ -28,6 +28,23 @@ IDA_PORT = 13337
 mcp = McpServer("ida-pro-mcp")
 dispatch_original = mcp.registry.dispatch
 
+def get_active_ports() -> list[int]:
+    """Scan 13337-13346 for active IDA instances."""
+    active = []
+    for p in range(13337, 13347):
+        try:
+            conn = http.client.HTTPConnection(IDA_HOST, p, timeout=0.1)
+            # Use a fast health check
+            req = {"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "server_health", "arguments": {}}, "id": 1}
+            conn.request("POST", "/mcp", json.dumps(req).encode("utf-8"), {"Content-Type": "application/json"})
+            resp = conn.getresponse()
+            if resp.status == 200:
+                active.append(p)
+            conn.close()
+        except Exception:
+            pass
+    return active
+
 
 def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse | None:
     """Dispatch JSON-RPC requests to the MCP server registry."""
@@ -56,20 +73,14 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                 "id": request_obj.get("id")
             })
         elif tool_name == "list_ida_instances":
-            content = "Active IDA instances:\n"
-            for p in range(13337, 13347):
-                try:
-                    c = http.client.HTTPConnection(IDA_HOST, p, timeout=0.1)
-                    req = {"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "server_health", "arguments": {}}, "id": 1}
-                    c.request("POST", "/mcp", json.dumps(req).encode("utf-8"), {"Content-Type": "application/json"})
-                    resp = c.getresponse()
-                    if resp.status == 200:
-                        content += f"- Port {p}: Online\n"
-                    c.close()
-                except Exception:
-                    pass
-            if content == "Active IDA instances:\n":
+            active_ports = get_active_ports()
+            if not active_ports:
                 content = "No active IDA instances found between ports 13337 and 13346."
+            else:
+                content = "Active IDA instances:\n"
+                for p in active_ports:
+                    content += f"- Port {p}: Online\n"
+            
             return JsonRpcResponse({
                 "jsonrpc": "2.0",
                 "result": {"content": [{"type": "text", "text": content}], "isError": False},
@@ -77,9 +88,18 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
             })
 
         args = request_obj["params"].get("arguments", {})
+        
+        # Discovery tools default to 'all' if no port/ports specified
+        DISCOVERY_TOOLS = ["survey_binary"]
+        if tool_name in DISCOVERY_TOOLS and "port" not in args and "ports" not in args:
+            args["ports"] = "all"
+
         if "ports" in args:
             ports_arg = args.pop("ports")
-            if isinstance(ports_arg, list) and ports_arg:
+            if ports_arg == "all":
+                target_ports = get_active_ports()
+                is_multi = True
+            elif isinstance(ports_arg, list) and ports_arg:
                 target_ports = [int(p) for p in ports_arg]
                 is_multi = True
         elif "port" in args:
@@ -159,9 +179,11 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                 for t in resp_obj["result"]["tools"]:
                     if "inputSchema" in t and "properties" in t["inputSchema"]:
                         t["inputSchema"]["properties"]["ports"] = {
-                            "type": "array",
-                            "items": {"type": "integer"},
-                            "description": "Optional: Array of ports to broadcast this tool call to multiple instances at once."
+                            "oneOf": [
+                                {"type": "array", "items": {"type": "integer"}},
+                                {"type": "string", "enum": ["all"]}
+                            ],
+                            "description": "Optional: Array of ports or 'all' to broadcast this tool call to multiple instances at once."
                         }
                         t["inputSchema"]["properties"]["port"] = {
                             "type": "integer",
