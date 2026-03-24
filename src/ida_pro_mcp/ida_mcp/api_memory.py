@@ -10,7 +10,7 @@ from typing import Annotated
 import ida_bytes
 import idaapi
 
-from .rpc import tool
+from .rpc import tool, ext
 from .sync import idasync
 from .utils import (
     IntRead,
@@ -86,6 +86,7 @@ def _parse_int_value(text: str, signed: bool, bits: int) -> int:
 
 
 @tool
+@ext("exp")
 @idasync
 def get_int(
     queries: Annotated[
@@ -182,6 +183,7 @@ def get_global_variable_value_internal(ea: int) -> str:
 
 
 @tool
+@ext("exp")
 @idasync
 def get_global_value(
     queries: Annotated[
@@ -227,6 +229,7 @@ def get_global_value(
 
 
 @tool
+@ext("mod")
 @idasync
 def patch(patches: list[MemoryPatch] | MemoryPatch) -> list[dict]:
     """Patch bytes at memory addresses with hex data"""
@@ -255,6 +258,7 @@ def patch(patches: list[MemoryPatch] | MemoryPatch) -> list[dict]:
 
 
 @tool
+@ext("exp")
 @idasync
 def put_int(
     items: Annotated[

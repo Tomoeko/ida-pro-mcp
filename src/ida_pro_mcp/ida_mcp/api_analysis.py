@@ -13,7 +13,7 @@ import ida_idaapi
 import ida_xref
 import ida_ua
 import ida_name
-from .rpc import tool
+from .rpc import tool, ext
 from .sync import idasync, tool_timeout, IDAError
 from .utils import (
     parse_address,
@@ -363,6 +363,7 @@ def _profile_function(
 
 
 @tool
+@ext("adv")
 @idasync
 @tool_timeout(90.0)
 def decompile(
@@ -390,6 +391,7 @@ def decompile(
 
 
 @tool
+@ext("adv")
 @idasync
 @tool_timeout(90.0)
 def disasm(
@@ -546,6 +548,7 @@ def disasm(
 
 
 @tool
+@ext("adv")
 @idasync
 @tool_timeout(120.0)
 def func_profile(
@@ -905,6 +908,7 @@ def xrefs_to(
 
 
 @tool
+@ext("adv")
 @idasync
 def xref_query(
     queries: Annotated[
@@ -1038,6 +1042,7 @@ def xref_query(
 
 
 @tool
+@ext("adv")
 @idasync
 def xrefs_to_field(queries: list[StructFieldQuery] | StructFieldQuery) -> list[dict]:
     """Get cross-references to structure fields"""
@@ -1130,6 +1135,7 @@ def xrefs_to_field(queries: list[StructFieldQuery] | StructFieldQuery) -> list[d
 
 
 @tool
+@ext("adv")
 @idasync
 def callees(
     addrs: Annotated[list[str] | str, "Function addresses to get callees for"],
@@ -1212,6 +1218,7 @@ def callees(
 
 
 @tool
+@ext("adv")
 @idasync
 def find_bytes(
     patterns: Annotated[
@@ -1300,6 +1307,7 @@ def find_bytes(
 
 
 @tool
+@ext("adv")
 @idasync
 def basic_blocks(
     addrs: Annotated[list[str] | str, "Function addresses to get basic blocks for"],
@@ -1381,6 +1389,7 @@ def basic_blocks(
 
 
 @tool
+@ext("adv")
 @idasync
 def find(
     type: Annotated[
@@ -1760,6 +1769,7 @@ def _scan_insn_ranges(
 
 
 @tool
+@ext("adv")
 @idasync
 def insn_query(
     queries: Annotated[
@@ -1890,6 +1900,7 @@ def insn_query(
 
 
 @tool
+@ext("adv")
 @idasync
 def export_funcs(
     addrs: Annotated[list[str] | str, "Function addresses to export"],
@@ -1954,6 +1965,7 @@ def export_funcs(
 
 
 @tool
+@ext("adv")
 @idasync
 def callgraph(
     roots: Annotated[

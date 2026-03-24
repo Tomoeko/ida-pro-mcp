@@ -9,7 +9,7 @@ import ida_dirtree
 import ida_funcs
 import ida_ua
 
-from .rpc import tool
+from .rpc import tool, ext
 from .sync import idasync, IDAError
 from .utils import (
     parse_address,
@@ -34,6 +34,7 @@ from .utils import (
 
 
 @tool
+@ext("mod")
 @idasync
 def set_comments(items: list[CommentOp] | CommentOp):
     """Set comments at addresses (both disassembly and decompiler views)"""
@@ -116,6 +117,7 @@ def set_comments(items: list[CommentOp] | CommentOp):
 
 
 @tool
+@ext("mod")
 @idasync
 def append_comments(items: list[CommentAppendOp] | CommentAppendOp):
     """Append comments at addresses, deduping exact text by default."""
@@ -186,6 +188,7 @@ def _append_comment_text(current: str, new_text: str, *, dedupe: bool) -> tuple[
 
 
 @tool
+@ext("mod")
 @idasync
 def patch_asm(items: list[AsmPatchOp] | AsmPatchOp) -> list[dict]:
     """Patch assembly instructions at addresses"""
@@ -708,6 +711,7 @@ def rename(batch: RenameBatch | dict) -> dict:
 
 
 @tool
+@ext("mod")
 @idasync
 def define_func(items: list[DefineOp] | DefineOp) -> list[dict]:
     """Define functions; IDA infers bounds unless end is provided."""
@@ -761,6 +765,7 @@ def define_func(items: list[DefineOp] | DefineOp) -> list[dict]:
 
 
 @tool
+@ext("mod")
 @idasync
 def define_code(items: list[DefineOp] | DefineOp) -> list[dict]:
     """Convert bytes to code instruction(s) at address(es)."""
@@ -793,6 +798,7 @@ def define_code(items: list[DefineOp] | DefineOp) -> list[dict]:
 
 
 @tool
+@ext("mod")
 @idasync
 def undefine(items: list[UndefineOp] | UndefineOp) -> list[dict]:
     """Undefine item(s) at address(es), converting back to raw bytes."""

@@ -46,6 +46,30 @@ def get_active_ports() -> list[int]:
     return active
 
 
+def _optimize_content(content_arr: list[dict]) -> list[dict]:
+    """Minify JSON strings and truncate extremely large text blocks."""
+    MAX_TEXT_SIZE = 64 * 1024  # 64KB per block
+    
+    optimized = []
+    for c in content_arr:
+        if c.get("type") == "text":
+            t = c.get("text", "")
+            if t.strip().startswith(("{", "[")):
+                try:
+                    # Minify JSON
+                    t = json.dumps(json.loads(t), separators=(',', ':'))
+                except Exception:
+                    pass
+            
+            if len(t) > MAX_TEXT_SIZE:
+                t = t[:MAX_TEXT_SIZE] + "\n... (truncated due to size) ..."
+            
+            optimized.append({"type": "text", "text": t})
+        else:
+            optimized.append(c)
+    return optimized
+
+
 def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse | None:
     """Dispatch JSON-RPC requests to the MCP server registry."""
     global IDA_PORT
@@ -137,20 +161,13 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                         has_error = True
                     elif "result" in resp_obj:
                         content_arr = resp_obj["result"].get("content", [])
-                        text_parts = []
-                        for c in content_arr:
-                            if c.get("type") == "text":
-                                t = c.get("text", "")
-                                # Minify JSON to save tokens in multi-port broadcasts
-                                if t.strip().startswith(("{", "[")):
-                                    try:
-                                        t = json.dumps(json.loads(t), separators=(',', ':'))
-                                    except Exception:
-                                        pass
-                                text_parts.append(t)
-
-                        if text_parts:
-                            combined_content.append({"type": "text", "text": f"{header}{''.join(text_parts)}\n\n"})
+                        optimized = _optimize_content(content_arr)
+                        
+                        if optimized:
+                            # Prepend header to first text block if multi
+                            if header and optimized[0]["type"] == "text":
+                                optimized[0]["text"] = header + optimized[0]["text"]
+                            combined_content.extend(optimized)
                         
                         if resp_obj["result"].get("isError"):
                             has_error = True
@@ -183,6 +200,10 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                     f"HTTP {response.status} {response.reason}: {raw_data}"
                 )
             resp_obj = json.loads(raw_data)
+            
+            # Apply optimization to single-port results
+            if "result" in resp_obj and "content" in resp_obj["result"]:
+                resp_obj["result"]["content"] = _optimize_content(resp_obj["result"]["content"])
             
             # Inject custom multiplexer tools into tools/list response
             if request_obj["method"] == "tools/list" and "result" in resp_obj and "tools" in resp_obj["result"]:

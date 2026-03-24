@@ -14,7 +14,7 @@ import ida_nalt
 import ida_typeinf
 import idc
 
-from .rpc import tool
+from .rpc import ext, tool
 from .sync import idasync
 from .utils import (
     ConvertedNumber,
@@ -277,6 +277,7 @@ def server_health() -> dict:
 
 
 @tool
+@ext("adv")
 @idasync
 def server_warmup(
     wait_auto_analysis: Annotated[bool, "Wait for auto analysis queue"] = True,
@@ -359,6 +360,7 @@ def lookup_funcs(
 
 
 @tool
+@ext("adv")
 def int_convert(
     inputs: Annotated[
         list[NumberConversion] | NumberConversion,
@@ -428,6 +430,7 @@ def int_convert(
 
 
 @tool
+@ext("adv")
 @idasync
 def list_funcs(
     queries: Annotated[
@@ -458,6 +461,7 @@ def list_funcs(
 
 
 @tool
+@ext("adv")
 @idasync
 def func_query(
     queries: Annotated[
@@ -549,6 +553,7 @@ def func_query(
 
 
 @tool
+@ext("adv")
 @idasync
 def list_globals(
     queries: Annotated[
@@ -582,6 +587,7 @@ def list_globals(
 
 
 @tool
+@ext("adv")
 @idasync
 def entity_query(
     queries: Annotated[
@@ -690,6 +696,7 @@ def entity_query(
 
 
 @tool
+@ext("adv")
 @idasync
 def imports(
     offset: Annotated[int, "Starting pagination index (default: 0)"],
@@ -700,6 +707,7 @@ def imports(
 
 
 @tool
+@ext("adv")
 @idasync
 def imports_query(
     queries: Annotated[
@@ -732,6 +740,7 @@ def imports_query(
 
 
 @tool
+@ext("mod")
 @idasync
 def idb_save(
     path: Annotated[str, "Optional destination path (default: current IDB path)"] = "",
@@ -755,6 +764,7 @@ def idb_save(
 
 
 @tool
+@ext("adv")
 @idasync
 def find_regex(
     pattern: Annotated[str, "Regex pattern to search for in strings"],

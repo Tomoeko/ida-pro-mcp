@@ -9,7 +9,7 @@ import ida_typeinf
 import ida_frame
 import idaapi
 
-from .rpc import tool
+from .rpc import tool, ext
 from .sync import idasync
 from .utils import (
     normalize_list_input,

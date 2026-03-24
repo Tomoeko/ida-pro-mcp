@@ -4,7 +4,7 @@ import os
 import threading
 import time
 import traceback
-from typing import Any, Callable, get_type_hints, get_origin, get_args, Union, TypedDict, TypeAlias, NotRequired, is_typeddict
+from typing import Any, Callable, get_type_hints, get_origin, get_args, Union, TypedDict, TypeAlias, NotRequired, is_typeddict, Literal
 from types import UnionType
 
 JsonRpcId: TypeAlias = str | int | float | None
@@ -304,6 +304,14 @@ class JsonRpcRegistry:
                             continue
 
                         arg_origin = get_origin(arg_type)
+                        
+                        # Handle Literal inner Union
+                        if arg_origin is Literal:
+                            if value in get_args(arg_type):
+                                type_matched = True
+                                break
+                            continue
+
                         check_type = arg_origin if arg_origin is not None else arg_type
 
                         # TypedDict cannot be used with isinstance - check for dict instead
@@ -315,19 +323,33 @@ class JsonRpcRegistry:
                             break
 
                     if not type_matched:
+                        def format_type(t):
+                            orig = get_origin(t)
+                            if orig is Literal:
+                                return "Literal[{}]".format(", ".join(map(repr, get_args(t))))
+                            return t.__name__ if isinstance(t, type) else str(t)
+
                         raise JsonRpcException(-32602, "Invalid params: expected {} for {}, got {}".format(
-                            " | ".join(
-                                t.__name__ if isinstance(t, type) else str(t)
-                                for t in args
-                            ),
+                            " | ".join(format_type(t) for t in args),
                             param_name,
                             type(value).__name__
                         ))
                     validated_params[param_name] = value
                     continue
 
-                # Handle generic types (list[X], dict[K,V])
+                # Handle generic types (list[X], dict[K,V], Literal)
                 if origin is not None:
+                    if origin is Literal:
+                        if value not in args:
+                             raise JsonRpcException(
+                                -32602,
+                                "Invalid params: {} expected one of {}, got {!r}".format(
+                                    param_name, list(args), value
+                                )
+                            )
+                        validated_params[param_name] = value
+                        continue
+
                     if not isinstance(value, origin):
                         raise JsonRpcException(
                             -32602,

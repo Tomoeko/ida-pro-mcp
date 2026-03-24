@@ -19,7 +19,7 @@ import ida_segment
 import ida_typeinf
 import ida_xref
 
-from .rpc import tool, unsafe
+from .rpc import tool, unsafe, ext
 from .sync import idasync
 from .utils import parse_address, get_function
 
@@ -29,6 +29,7 @@ from .utils import parse_address, get_function
 
 
 @tool
+@ext("exp")
 @idasync
 @unsafe
 def py_eval(

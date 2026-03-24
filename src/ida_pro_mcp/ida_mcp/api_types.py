@@ -8,7 +8,7 @@ import ida_bytes
 import ida_frame
 import idaapi
 
-from .rpc import tool
+from .rpc import tool, ext
 from .sync import idasync
 from .utils import (
     normalize_list_input,
@@ -926,6 +926,7 @@ def _apply_type_edit(edit: dict) -> dict:
 
 
 @tool
+@ext("mod")
 @idasync
 def set_type(edits: list[TypeEdit] | TypeEdit) -> list[dict]:
     """Apply types (function/global/local/stack)"""
