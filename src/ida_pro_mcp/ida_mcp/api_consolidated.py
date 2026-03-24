@@ -127,6 +127,8 @@ def analyze_recursive(
     return root_analysis
 
 @tool
+@idasync
+@tool_timeout(180.0)
 def search_and_triage(pattern: str, search_type: str = "string", max_results: int = 20) -> list[dict]:
     """Search for string or byte patterns and return immediate surrounding context.
     
@@ -142,10 +144,11 @@ def search_and_triage(pattern: str, search_type: str = "string", max_results: in
     import ida_search
     import ida_nalt
     import idc
+    from .compat import inf_get_max_ea
     
     results = []
     addr = ida_nalt.get_imagebase()
-    end = ida_nalt.get_max_ea()
+    end = inf_get_max_ea()
     
     flag = ida_search.SEARCH_DOWN | ida_search.SEARCH_NEXT
     
@@ -169,7 +172,8 @@ def search_and_triage(pattern: str, search_type: str = "string", max_results: in
             ctx["type"] = "data"
             ctx["name"] = idc.get_name(addr)
             if ida_bytes.is_strlit(flags):
-                ctx["string"] = idc.get_strlit_contents(addr)
+                val = idc.get_strlit_contents(addr)
+                ctx["string"] = val.decode('utf-8', errors='replace') if isinstance(val, bytes) else val
         
         results.append(ctx)
         addr = ida_bytes.next_head(addr, end)
