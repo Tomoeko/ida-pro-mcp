@@ -345,6 +345,11 @@ def survey_binary(
         ),
         "segments": segments,
         "entrypoints": _build_entrypoints(),
+        "extension_manager": {
+            "note": "Advanced tools (byte scanning, callgraphs, disassembly, patching) are available via 'mcp_ida-pro-mcp_ida_extension_manager'.",
+            "groups": ["adv", "mod", "exp", "dbg"],
+            "discovery_command": "mcp_ida-pro-mcp_ida_extension_manager(action='list_groups')"
+        }
     }
 
     if not minimal:
