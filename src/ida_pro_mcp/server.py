@@ -115,7 +115,7 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
             args = request_obj["params"].get("arguments", {})
             
             # Discovery tools default to 'all' if no port/ports specified
-            DISCOVERY_TOOLS = ["survey_binary"]
+            DISCOVERY_TOOLS = ["survey_binary", "server_health"]
             if tool_name in DISCOVERY_TOOLS and "port" not in args and "ports" not in args:
                 args["ports"] = "all"
 
