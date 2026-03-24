@@ -605,13 +605,21 @@ def get_image_size() -> int:
 def parse_address(addr: str | int) -> int:
     if isinstance(addr, int):
         return addr
+    s = str(addr).strip()
     try:
-        return int(addr, 0)
+        return int(s, 0)
     except ValueError:
-        for ch in addr:
-            if ch not in "0123456789abcdefABCDEF":
-                raise IDAError(f"Failed to parse address: {addr}")
-        raise IDAError(f"Failed to parse address (missing 0x prefix): {addr}")
+        pass
+    
+    # Try resolving as a name
+    ea = idaapi.get_name_ea(idaapi.BADADDR, s)
+    if ea != idaapi.BADADDR:
+        return ea
+        
+    for ch in s:
+        if ch not in "0123456789abcdefABCDEF":
+            raise IDAError(f"Failed to parse address: {s}")
+    raise IDAError(f"Failed to parse address (missing 0x prefix): {s}")
 
 
 def normalize_list_input(value: list | str) -> list:

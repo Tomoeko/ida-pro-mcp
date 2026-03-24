@@ -31,7 +31,7 @@ from .api_composite import (
 
 @tool
 @idasync
-@tool_timeout(180.0)
+@tool_timeout(240.0)
 def analyze_functions_batch(
     addrs: Annotated[list[str] | str, "List of function addresses or names"],
     detail_level: Annotated[Literal["minimal", "standard"], "Detail level for each function"] = "standard",
