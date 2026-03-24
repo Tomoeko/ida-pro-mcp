@@ -115,7 +115,7 @@ class MCP(idaapi.plugin_t):
             hotkey = hotkey.replace("Alt", "Option")
 
         print(
-            f"[MCP] Plugin loaded, use Edit -> Plugins -> MCP ({hotkey}) to start the server"
+            f"[MCP] Plugin loaded, use Edit -> Plugins -> MCP ({hotkey}) to start/restart the server"
         )
         self.mcp: "ida_mcp.rpc.McpServer | None" = None
         self.host = self.DEFAULT_HOST
@@ -133,6 +133,9 @@ class MCP(idaapi.plugin_t):
         self._ui_hooks = MCPUIHooks()
         self._ui_hooks.hook()
 
+        # QoL: Auto-start the server on load
+        self.run(0)
+
         return idaapi.PLUGIN_KEEP
 
     def run(self, arg):
@@ -143,22 +146,31 @@ class MCP(idaapi.plugin_t):
         # HACK: ensure fresh load of ida_mcp package
         unload_package("ida_mcp")
         if TYPE_CHECKING:
-            from .ida_mcp import MCP_SERVER, IdaMcpHttpRequestHandler, init_caches
+            from .ida_mcp import MCP_SERVER, IdaMcpHttpRequestHandler, init_caches, set_download_base_url
         else:
-            from ida_mcp import MCP_SERVER, IdaMcpHttpRequestHandler, init_caches
+            from ida_mcp import MCP_SERVER, IdaMcpHttpRequestHandler, init_caches, set_download_base_url
 
         try:
             init_caches()
         except Exception as e:
             print(f"[MCP] Cache init failed: {e}")
 
+        # Strictly follow the 10-instance limit (13337-13346)
         port = self.port
-        max_port = port + 100
+        max_port = self.DEFAULT_PORT + 10
+        if port >= max_port:
+             port = self.DEFAULT_PORT
+
         while port < max_port:
             try:
                 MCP_SERVER.serve(
                     self.host, port, request_handler=IdaMcpHttpRequestHandler
                 )
+                
+                # Sync the download base URL so large outputs work correctly for this port
+                set_download_base_url(f"http://{self.host}:{port}")
+
+                print(f"[MCP] Server started on port {port}")
                 print(f"  Config: http://{self.host}:{port}/config.html")
                 self.mcp = MCP_SERVER
                 return
@@ -167,7 +179,7 @@ class MCP(idaapi.plugin_t):
                     port += 1
                 else:
                     raise
-        print(f"[MCP] Error: No available port in range {self.port}-{max_port - 1}")
+        print(f"[MCP] Error: No available port in range {self.DEFAULT_PORT}-{max_port - 1}")
 
     def term(self):
         if hasattr(self, "_ui_hooks"):

@@ -31,6 +31,7 @@ dispatch_original = mcp.registry.dispatch
 
 def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse | None:
     """Dispatch JSON-RPC requests to the MCP server registry."""
+    global IDA_PORT
     if not isinstance(request, dict):
         request_obj: JsonRpcRequest = json.loads(request)
     else:
@@ -41,11 +42,13 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
     if request_obj["method"].startswith("notifications/"):
         return dispatch_original(request)
 
+    target_ports = [IDA_PORT]
+    is_multi = False
+
     if request_obj["method"] == "tools/call":
         tool_name = request_obj["params"].get("name")
         if tool_name == "switch_ida_instance":
             port = int(request_obj["params"].get("arguments", {}).get("port", 13337))
-            global IDA_PORT
             IDA_PORT = port
             return JsonRpcResponse({
                 "jsonrpc": "2.0",
@@ -73,14 +76,69 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                 "id": request_obj.get("id")
             })
 
-    payload: bytes | str | dict = request
-    if isinstance(payload, dict):
-        payload = json.dumps(payload)
-    elif isinstance(payload, str):
-        payload = payload.encode("utf-8")
+        args = request_obj["params"].get("arguments", {})
+        if "ports" in args:
+            ports_arg = args.pop("ports")
+            if isinstance(ports_arg, list) and ports_arg:
+                target_ports = [int(p) for p in ports_arg]
+                is_multi = True
+        elif "port" in args:
+            port_arg = args.pop("port")
+            if port_arg:
+                target_ports = [int(port_arg)]
+                is_multi = True
+        
+        request_obj["params"]["arguments"] = args
+
+    payload = json.dumps(request_obj).encode("utf-8")
 
     try:
-        conn = http.client.HTTPConnection(IDA_HOST, IDA_PORT, timeout=30)
+        if is_multi and request_obj["method"] == "tools/call":
+            combined_content = []
+            has_error = False
+            for p in target_ports:
+                try:
+                    conn = http.client.HTTPConnection(IDA_HOST, p, timeout=30)
+                    conn.request("POST", "/mcp", payload, {"Content-Type": "application/json"})
+                    response = conn.getresponse()
+                    raw_data = response.read().decode()
+                    if response.status >= 400:
+                        header = f"--- Port {p} ---\n" if len(target_ports) > 1 else ""
+                        combined_content.append({"type": "text", "text": f"{header}HTTP {response.status} {response.reason}: {raw_data}\n\n"})
+                        has_error = True
+                        continue
+                        
+                    resp_obj = json.loads(raw_data)
+                    header = f"--- Port {p} ---\n" if len(target_ports) > 1 else ""
+
+                    if "error" in resp_obj:
+                        err_msg = resp_obj["error"].get("message", str(resp_obj["error"]))
+                        combined_content.append({"type": "text", "text": f"{header}Error: {err_msg}\n\n"})
+                        has_error = True
+                    elif "result" in resp_obj:
+                        content_arr = resp_obj["result"].get("content", [])
+                        text_parts = [c.get("text", "") for c in content_arr if c.get("type") == "text"]
+                        
+                        if text_parts:
+                            combined_content.append({"type": "text", "text": f"{header}{''.join(text_parts)}\n\n"})
+                        
+                        if resp_obj["result"].get("isError"):
+                            has_error = True
+                except Exception as e:
+                    header = f"--- Port {p} ---\n" if len(target_ports) > 1 else ""
+                    combined_content.append({"type": "text", "text": f"{header}Request failed: {str(e)}\n\n"})
+                    has_error = True
+                finally:
+                    if 'conn' in locals() and hasattr(conn, "close"):
+                        conn.close()
+                        
+            return JsonRpcResponse({
+                "jsonrpc": "2.0",
+                "result": {"content": combined_content, "isError": has_error},
+                "id": request_obj.get("id")
+            })
+
+        conn = http.client.HTTPConnection(IDA_HOST, target_ports[0], timeout=30)
         try:
             conn.request(
                 "POST",
@@ -98,6 +156,17 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
             
             # Inject custom multiplexer tools into tools/list response
             if request_obj["method"] == "tools/list" and "result" in resp_obj and "tools" in resp_obj["result"]:
+                for t in resp_obj["result"]["tools"]:
+                    if "inputSchema" in t and "properties" in t["inputSchema"]:
+                        t["inputSchema"]["properties"]["ports"] = {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "description": "Optional: Array of ports to broadcast this tool call to multiple instances at once."
+                        }
+                        t["inputSchema"]["properties"]["port"] = {
+                            "type": "integer",
+                            "description": "Optional: Execute this tool on a specific IDA instance port."
+                        }
                 resp_obj["result"]["tools"].extend([
                     {
                         "name": "switch_ida_instance",

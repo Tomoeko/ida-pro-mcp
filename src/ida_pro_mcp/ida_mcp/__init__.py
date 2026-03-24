@@ -39,7 +39,7 @@ from . import api_composite
 
 # Re-export key components for external use
 from .sync import idasync, IDAError, IDASyncError, CancelledError
-from .rpc import MCP_SERVER, MCP_UNSAFE, tool, unsafe, resource
+from .rpc import MCP_SERVER, MCP_UNSAFE, tool, unsafe, resource, set_download_base_url
 from .http import IdaMcpHttpRequestHandler
 from .api_core import init_caches
 
@@ -70,6 +70,7 @@ __all__ = [
     "tool",
     "unsafe",
     "resource",
+    "set_download_base_url",
     "IdaMcpHttpRequestHandler",
     "init_caches",
 ]
