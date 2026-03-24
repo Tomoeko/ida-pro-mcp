@@ -28,6 +28,7 @@ from .api_composite import (
     _compact_strings,
     _basic_block_info,
 )
+from . import compat
 
 @tool
 @idasync
@@ -157,7 +158,10 @@ def search_and_triage(pattern: str, search_type: str = "string", max_results: in
         if search_type == "string":
             addr = ida_search.find_text(addr, 0, 0, pattern, flag)
         else:
-            addr = ida_search.find_binary(addr, end, pattern, 16, flag)
+            searcher, err = compat.make_bytes_searcher(pattern)
+            if err:
+                return [{"error": err}]
+            addr = searcher(addr, end)
             
         if addr == idc.BADADDR:
             break

@@ -86,57 +86,64 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
     target_ports = [IDA_PORT]
     is_multi = False
 
-    if request_obj["method"] == "tools/call":
-        tool_name = request_obj["params"].get("name")
-        if tool_name == "switch_ida_instance":
-            port = int(request_obj["params"].get("arguments", {}).get("port", 13337))
-            IDA_PORT = port
-            return JsonRpcResponse({
-                "jsonrpc": "2.0",
-                "result": {"content": [{"type": "text", "text": f"Switched active IDA instance to port {port}"}], "isError": False},
-                "id": request_obj.get("id")
-            })
-        elif tool_name == "list_ida_instances":
-            active_ports = get_active_ports()
-            if not active_ports:
-                content = "No active IDA instances found between ports 13337 and 13346."
-            else:
-                content = "Active IDA instances:\n"
-                for p in active_ports:
-                    content += f"- Port {p}: Online\n"
-            
-            return JsonRpcResponse({
-                "jsonrpc": "2.0",
-                "result": {"content": [{"type": "text", "text": content}], "isError": False},
-                "id": request_obj.get("id")
-            })
-
-        args = request_obj["params"].get("arguments", {})
-        
-        # Discovery tools default to 'all' if no port/ports specified
-        DISCOVERY_TOOLS = ["survey_binary"]
-        if tool_name in DISCOVERY_TOOLS and "port" not in args and "ports" not in args:
-            args["ports"] = "all"
-
-        if "ports" in args:
-            ports_arg = args.pop("ports")
-            if ports_arg == "all":
-                target_ports = get_active_ports()
-                is_multi = True
-            elif isinstance(ports_arg, list) and ports_arg:
-                target_ports = [int(p) for p in ports_arg]
-                is_multi = True
-        elif "port" in args:
-            port_arg = args.pop("port")
-            if port_arg:
-                target_ports = [int(port_arg)]
-                is_multi = True
-        
-        request_obj["params"]["arguments"] = args
-
-    payload = json.dumps(request_obj).encode("utf-8")
-
     try:
+        if request_obj["method"] == "tools/call":
+            tool_name = request_obj["params"].get("name")
+            if tool_name == "switch_ida_instance":
+                port = int(request_obj["params"].get("arguments", {}).get("port", 13337))
+                IDA_PORT = port
+                return JsonRpcResponse({
+                    "jsonrpc": "2.0",
+                    "result": {"content": [{"type": "text", "text": f"Switched active IDA instance to port {port}"}], "isError": False},
+                    "id": request_obj.get("id")
+                })
+            elif tool_name == "list_ida_instances":
+                active_ports = get_active_ports()
+                if not active_ports:
+                    content = "No active IDA instances found between ports 13337 and 13346."
+                else:
+                    content = "Active IDA instances:\n"
+                    for p in active_ports:
+                        content += f"- Port {p}: Online\n"
+                
+                return JsonRpcResponse({
+                    "jsonrpc": "2.0",
+                    "result": {"content": [{"type": "text", "text": content}], "isError": False},
+                    "id": request_obj.get("id")
+                })
+
+            args = request_obj["params"].get("arguments", {})
+            
+            # Discovery tools default to 'all' if no port/ports specified
+            DISCOVERY_TOOLS = ["survey_binary"]
+            if tool_name in DISCOVERY_TOOLS and "port" not in args and "ports" not in args:
+                args["ports"] = "all"
+
+            if "ports" in args:
+                ports_arg = args.pop("ports")
+                if ports_arg == "all" or ports_arg == ["all"]:
+                    target_ports = get_active_ports()
+                    is_multi = True
+                elif isinstance(ports_arg, list) and ports_arg:
+                    target_ports = []
+                    for p in ports_arg:
+                        try:
+                            target_ports.append(int(p))
+                        except ValueError:
+                            pass
+                    is_multi = bool(target_ports)
+            elif "port" in args:
+                port_arg = args.pop("port")
+                if port_arg:
+                    target_ports = [int(port_arg)]
+                    is_multi = True
+            
+            # Pop optional executable_name so it doesn't break underlying API functions
+            args.pop("executable_name", None)
+
+            request_obj["params"]["arguments"] = args
+
+        payload = json.dumps(request_obj).encode("utf-8")
         if is_multi and request_obj["method"] == "tools/call":
             combined_content = []
             has_error = False
@@ -219,6 +226,10 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                         t["inputSchema"]["properties"]["port"] = {
                             "type": "integer",
                             "description": "Optional: Execute this tool on a specific IDA instance port."
+                        }
+                        t["inputSchema"]["properties"]["executable_name"] = {
+                            "type": "string",
+                            "description": "Optional: Provide the executable name for context clarification."
                         }
                 resp_obj["result"]["tools"].extend([
                     {

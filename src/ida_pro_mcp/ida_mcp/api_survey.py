@@ -322,7 +322,13 @@ def survey_binary(
     complex), imports by category, and call graph summary. Use this as your FIRST
     tool call when starting analysis. Do not call list_funcs, imports, or find_regex
     separately for triage — this returns all of that. Use detail_level='minimal'
-    for binaries with >10k functions."""
+    for binaries with >10k functions.
+    
+    CRITICAL: The output is very large. You MUST save the result to a markdown artifact 
+    or file immediately and DO NOT call this tool again for the same port.
+    
+    If you need advanced tools (search, patching, debugging), immediately look 
+    at the 'extension_manager' key in the output and use 'ida_extension_manager'."""
     import idautils
 
     minimal = detail_level == "minimal"
