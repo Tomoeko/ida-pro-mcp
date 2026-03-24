@@ -41,6 +41,38 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
     if request_obj["method"].startswith("notifications/"):
         return dispatch_original(request)
 
+    if request_obj["method"] == "tools/call":
+        tool_name = request_obj["params"].get("name")
+        if tool_name == "switch_ida_instance":
+            port = int(request_obj["params"].get("arguments", {}).get("port", 13337))
+            global IDA_PORT
+            IDA_PORT = port
+            return JsonRpcResponse({
+                "jsonrpc": "2.0",
+                "result": {"content": [{"type": "text", "text": f"Switched active IDA instance to port {port}"}], "isError": False},
+                "id": request_obj.get("id")
+            })
+        elif tool_name == "list_ida_instances":
+            content = "Active IDA instances:\n"
+            for p in range(13337, 13347):
+                try:
+                    c = http.client.HTTPConnection(IDA_HOST, p, timeout=0.1)
+                    req = {"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "server_health", "arguments": {}}, "id": 1}
+                    c.request("POST", "/mcp", json.dumps(req).encode("utf-8"), {"Content-Type": "application/json"})
+                    resp = c.getresponse()
+                    if resp.status == 200:
+                        content += f"- Port {p}: Online\n"
+                    c.close()
+                except Exception:
+                    pass
+            if content == "Active IDA instances:\n":
+                content = "No active IDA instances found between ports 13337 and 13346."
+            return JsonRpcResponse({
+                "jsonrpc": "2.0",
+                "result": {"content": [{"type": "text", "text": content}], "isError": False},
+                "id": request_obj.get("id")
+            })
+
     payload: bytes | str | dict = request
     if isinstance(payload, dict):
         payload = json.dumps(payload)
@@ -62,7 +94,31 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                 raise RuntimeError(
                     f"HTTP {response.status} {response.reason}: {raw_data}"
                 )
-            return json.loads(raw_data)
+            resp_obj = json.loads(raw_data)
+            
+            # Inject custom multiplexer tools into tools/list response
+            if request_obj["method"] == "tools/list" and "result" in resp_obj and "tools" in resp_obj["result"]:
+                resp_obj["result"]["tools"].extend([
+                    {
+                        "name": "switch_ida_instance",
+                        "description": "Switches the active IDA instance to the specified port.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"port": {"type": "integer", "description": "The port number of the IDA instance (e.g. 13337 to 13346)"}},
+                            "required": ["port"]
+                        }
+                    },
+                    {
+                        "name": "list_ida_instances",
+                        "description": "Pings ports 13337-13346 to find active IDA instances and returns their status.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {},
+                            "required": []
+                        }
+                    }
+                ])
+            return resp_obj
         finally:
             conn.close()
     except Exception as e:
