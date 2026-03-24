@@ -137,8 +137,18 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                         has_error = True
                     elif "result" in resp_obj:
                         content_arr = resp_obj["result"].get("content", [])
-                        text_parts = [c.get("text", "") for c in content_arr if c.get("type") == "text"]
-                        
+                        text_parts = []
+                        for c in content_arr:
+                            if c.get("type") == "text":
+                                t = c.get("text", "")
+                                # Minify JSON to save tokens in multi-port broadcasts
+                                if t.strip().startswith(("{", "[")):
+                                    try:
+                                        t = json.dumps(json.loads(t), separators=(',', ':'))
+                                    except Exception:
+                                        pass
+                                text_parts.append(t)
+
                         if text_parts:
                             combined_content.append({"type": "text", "text": f"{header}{''.join(text_parts)}\n\n"})
                         
