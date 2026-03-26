@@ -24,14 +24,16 @@ except ImportError:
 
 IDA_HOST = "127.0.0.1"
 IDA_PORT = 13337
+IDA_BASE_PORT = 13337
+IDA_MAX_PORTS = 50
 
 mcp = McpServer("ida-pro-mcp")
 dispatch_original = mcp.registry.dispatch
 
 def get_active_ports() -> list[int]:
-    """Scan 13337-13346 for active IDA instances."""
+    """Scan for active IDA instances across the configured port range."""
     active = []
-    for p in range(13337, 13347):
+    for p in range(IDA_BASE_PORT, IDA_BASE_PORT + IDA_MAX_PORTS):
         try:
             conn = http.client.HTTPConnection(IDA_HOST, p, timeout=0.1)
             # Use a fast health check
@@ -100,7 +102,7 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
             elif tool_name == "list_ida_instances":
                 active_ports = get_active_ports()
                 if not active_ports:
-                    content = "No active IDA instances found between ports 13337 and 13346."
+                    content = f"No active IDA instances found between ports {IDA_BASE_PORT} and {IDA_BASE_PORT + IDA_MAX_PORTS - 1}."
                 else:
                     content = "Active IDA instances:\n"
                     for p in active_ports:
@@ -237,13 +239,14 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                         "description": "Switches the active IDA instance to the specified port.",
                         "inputSchema": {
                             "type": "object",
-                            "properties": {"port": {"type": "integer", "description": "The port number of the IDA instance (e.g. 13337 to 13346)"}},
+                            "properties": {"port": {"type": "integer", "description": f"The port number of the IDA instance (e.g. {IDA_BASE_PORT} to {IDA_BASE_PORT + IDA_MAX_PORTS - 1})"}},
+
                             "required": ["port"]
                         }
                     },
                     {
                         "name": "list_ida_instances",
-                        "description": "Pings ports 13337-13346 to find active IDA instances and returns their status.",
+                        "description": f"Pings ports {IDA_BASE_PORT}-{IDA_BASE_PORT + IDA_MAX_PORTS - 1} to find active IDA instances and returns their status.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {},

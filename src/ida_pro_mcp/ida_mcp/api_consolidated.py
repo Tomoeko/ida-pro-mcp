@@ -142,46 +142,55 @@ def search_and_triage(pattern: str, search_type: str = "string", max_results: in
         max_results: Max hits to process and return.
     """
     import ida_bytes
-    import ida_search
     import ida_nalt
     import idc
+    from .api_core import _get_strings_cache
     from .compat import inf_get_max_ea
     
     results = []
-    addr = ida_nalt.get_imagebase()
-    end = inf_get_max_ea()
     
-    flag = ida_search.SEARCH_DOWN | ida_search.SEARCH_NEXT
-    
-    count = 0
-    while addr < end and count < max_results:
-        if search_type == "string":
-            addr = ida_search.find_text(addr, 0, 0, pattern, flag)
-        else:
-            searcher, err = compat.make_bytes_searcher(pattern)
-            if err:
-                return [{"error": err}]
-            addr = searcher(addr, end)
-            
-        if addr == idc.BADADDR:
-            break
-            
-        # Get context
-        flags = ida_bytes.get_flags(addr)
-        ctx = {"addr": hex(addr)}
-        if ida_bytes.is_code(flags):
-            ctx["type"] = "code"
-            ctx["name"] = idc.get_func_name(addr) or idc.get_name(addr)
-        elif ida_bytes.is_data(flags):
-            ctx["type"] = "data"
-            ctx["name"] = idc.get_name(addr)
-            if ida_bytes.is_strlit(flags):
-                val = idc.get_strlit_contents(addr)
-                ctx["string"] = val.decode('utf-8', errors='replace') if isinstance(val, bytes) else val
+    if search_type == "string":
+        # Fast path: filter the pre-built strings cache instead of linear ida_search.find_text
+        pattern_lower = pattern.lower()
+        for ea, text in _get_strings_cache():
+            if pattern_lower in text.lower():
+                ctx = {"addr": hex(ea), "type": "data", "name": idc.get_name(ea), "string": text}
+                # Add referring function context
+                func_name = idc.get_func_name(ea)
+                if func_name:
+                    ctx["ref_func"] = func_name
+                results.append(ctx)
+                if len(results) >= max_results:
+                    break
+    else:
+        # Bytes search — use existing efficient compat layer
+        end = inf_get_max_ea()
+        searcher, err = compat.make_bytes_searcher(pattern)
+        if err:
+            return [{"error": err}]
         
-        results.append(ctx)
-        addr = ida_bytes.next_head(addr, end)
-        count += 1
+        addr = ida_nalt.get_imagebase()
+        count = 0
+        while addr < end and count < max_results:
+            addr = searcher(addr, end)
+            if addr == idc.BADADDR:
+                break
+            
+            flags = ida_bytes.get_flags(addr)
+            ctx = {"addr": hex(addr)}
+            if ida_bytes.is_code(flags):
+                ctx["type"] = "code"
+                ctx["name"] = idc.get_func_name(addr) or idc.get_name(addr)
+            elif ida_bytes.is_data(flags):
+                ctx["type"] = "data"
+                ctx["name"] = idc.get_name(addr)
+                if ida_bytes.is_strlit(flags):
+                    val = idc.get_strlit_contents(addr)
+                    ctx["string"] = val.decode('utf-8', errors='replace') if isinstance(val, bytes) else val
+            
+            results.append(ctx)
+            addr = ida_bytes.next_head(addr, end)
+            count += 1
         
     return results
 

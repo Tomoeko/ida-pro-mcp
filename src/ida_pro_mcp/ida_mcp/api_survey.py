@@ -17,10 +17,13 @@ from .utils import get_image_size
 _MAX_FUNC_ITER = 10_000
 
 # Max strings to process in _build_interesting_strings (perf cap).
-_MAX_STRING_ITER = 5_000
+_MAX_STRING_ITER = 2_000
 
 # Max xrefs to materialize per string.
-_MAX_XREFS_PER_STRING = 200
+_MAX_XREFS_PER_STRING = 50
+
+# Max "other" imports to include (rest are summarized as a count).
+_MAX_OTHER_IMPORTS = 10
 
 # Import category rules: keyword -> category name.
 # Order matters: first match wins.
@@ -157,10 +160,10 @@ def _build_interesting_strings() -> list[dict]:
         scored.append((count, ea, s))
 
     scored.sort(key=lambda t: t[0], reverse=True)
-    # Top 15 only — compact: string value + xref count, no referencing function lists.
+    # Top 10 only — compact: string value + xref count, no referencing function lists.
     return [
         {"addr": hex(ea), "string": s, "xref_count": xref_count}
-        for xref_count, ea, s in scored[:15]
+        for xref_count, ea, s in scored[:10]
     ]
 
 
@@ -210,8 +213,8 @@ def _build_interesting_functions(func_eas: list[int], truncated: bool) -> list[d
         candidates.append((xref_count, ea, name, size, flags))
 
     candidates.sort(key=lambda t: t[0], reverse=True)
-    # Top 15 with classification hints.
-    top = candidates[:15]
+    # Top 10 with classification hints.
+    top = candidates[:10]
 
     result = []
     for xref_count, ea, name, size, _flags in top:
@@ -266,6 +269,12 @@ def _build_imports_by_category() -> dict[str, list[dict]]:
                 "name": name,
                 "module": module_name,
             })
+
+    # Trim "other" category to avoid token bloat
+    other = categories.get("other", [])
+    if len(other) > _MAX_OTHER_IMPORTS:
+        categories["other"] = other[:_MAX_OTHER_IMPORTS]
+        categories["other_total"] = len(other)
 
     return categories
 
@@ -362,7 +371,6 @@ def survey_binary(
         result["interesting_strings"] = _build_interesting_strings()
         result["interesting_functions"] = _build_interesting_functions(func_eas, truncated)
         result["imports_by_category"] = _build_imports_by_category()
-        result["call_graph_summary"] = _build_call_graph_summary(func_eas)
 
     if truncated:
         result["_note"] = (

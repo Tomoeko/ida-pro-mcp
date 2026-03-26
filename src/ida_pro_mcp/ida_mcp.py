@@ -155,9 +155,9 @@ class MCP(idaapi.plugin_t):
         except Exception as e:
             print(f"[MCP] Cache init failed: {e}")
 
-        # Strictly follow the 10-instance limit (13337-13346)
+        # Allow up to 50 instances (13337-13386)
         port = self.port
-        max_port = self.DEFAULT_PORT + 10
+        max_port = self.DEFAULT_PORT + 50
         if port >= max_port:
              port = self.DEFAULT_PORT
 
