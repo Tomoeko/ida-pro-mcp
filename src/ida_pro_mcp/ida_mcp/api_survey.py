@@ -16,6 +16,9 @@ from .utils import get_image_size
 # Max functions to iterate for xref counting on large binaries.
 _MAX_FUNC_ITER = 10_000
 
+# Max entrypoints to include in survey output.
+_MAX_ENTRYPOINTS = 15
+
 # Max strings to process in _build_interesting_strings (perf cap).
 _MAX_STRING_ITER = 2_000
 
@@ -109,7 +112,10 @@ def _build_entrypoints() -> list[dict]:
         ea = compat.get_entry(ordinal)
         name = compat.get_entry_name(ordinal)
         entrypoints.append({"addr": hex(ea), "name": name, "ordinal": ordinal})
-    return entrypoints
+    result = entrypoints[:_MAX_ENTRYPOINTS]
+    if len(entrypoints) > _MAX_ENTRYPOINTS:
+        result.append({"_truncated": True, "total": len(entrypoints)})
+    return result
 
 
 def _build_statistics(func_eas: list[int], string_count: int, segment_count: int) -> dict:
@@ -270,13 +276,18 @@ def _build_imports_by_category() -> dict[str, list[dict]]:
                 "module": module_name,
             })
 
-    # Trim "other" category to avoid token bloat
-    other = categories.get("other", [])
-    if len(other) > _MAX_OTHER_IMPORTS:
-        categories["other"] = other[:_MAX_OTHER_IMPORTS]
-        categories["other_total"] = len(other)
+    # Trim all categories to avoid token bloat, drop empty ones
+    trimmed: dict[str, list[dict] | int] = {}
+    for cat, entries in categories.items():
+        if not entries:
+            continue
+        if len(entries) > _MAX_OTHER_IMPORTS:
+            trimmed[cat] = entries[:_MAX_OTHER_IMPORTS]
+            trimmed[f"{cat}_total"] = len(entries)
+        else:
+            trimmed[cat] = entries
 
-    return categories
+    return trimmed
 
 
 def _build_call_graph_summary(func_eas: list[int]) -> dict:

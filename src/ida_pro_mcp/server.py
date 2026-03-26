@@ -50,7 +50,7 @@ def get_active_ports() -> list[int]:
 
 def _optimize_content(content_arr: list[dict]) -> list[dict]:
     """Minify JSON strings and truncate extremely large text blocks."""
-    MAX_TEXT_SIZE = 64 * 1024  # 64KB per block
+    MAX_TEXT_SIZE = 32 * 1024  # 32KB per block
     
     optimized = []
     for c in content_arr:
@@ -188,6 +188,12 @@ def dispatch_proxy(request: dict | str | bytes | bytearray) -> JsonRpcResponse |
                     if 'conn' in locals() and hasattr(conn, "close"):
                         conn.close()
                         
+            # Cap total response size for multi-port broadcasts
+            MAX_TOTAL_SIZE = 128 * 1024  # 128KB total
+            total_size = sum(len(c.get("text", "")) for c in combined_content if c.get("type") == "text")
+            if total_size > MAX_TOTAL_SIZE:
+                combined_content.append({"type": "text", "text": f"\n... (response truncated: {total_size // 1024}KB exceeded {MAX_TOTAL_SIZE // 1024}KB limit across {len(target_ports)} ports) ..."})
+
             return JsonRpcResponse({
                 "jsonrpc": "2.0",
                 "result": {"content": combined_content, "isError": has_error},

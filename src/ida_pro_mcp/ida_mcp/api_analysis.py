@@ -779,8 +779,17 @@ def analyze_batch(
 
             if include_decompile:
                 code = decompile_function_safe(fn.start_ea)
-                analysis["decompile"] = code
-                if code is None:
+                if code is not None:
+                    code_lines = code.split("\n")
+                    _BATCH_DECOMPILE_CAP = 200
+                    if len(code_lines) > _BATCH_DECOMPILE_CAP:
+                        analysis["decompile"] = "\n".join(code_lines[:_BATCH_DECOMPILE_CAP])
+                        analysis["decompile_truncated"] = len(code_lines)
+                        analysis["decompile_hint"] = "Use extension tool 'decompile' (group: adv) for full output"
+                    else:
+                        analysis["decompile"] = code
+                else:
+                    analysis["decompile"] = None
                     analysis["decompile_error"] = "Decompilation failed"
 
             if include_disasm:

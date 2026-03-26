@@ -186,7 +186,10 @@ def analyze_function(
     excluded by default to save context tokens — set include_asm=true only when
     you need raw instructions (crypto analysis, shellcode, decompiler failure).
     Use this instead of calling decompile, disasm, callees, xrefs_to, stack_frame,
-    and basic_blocks separately."""
+    and basic_blocks separately.
+    If decompile_truncated is present in the output, use the extension tool
+    'decompile' (group: adv) via ida_extension_manager for the full pseudocode,
+    or 'disasm' for full disassembly with pagination."""
 
     try:
         ea = _resolve_addr(addr)
@@ -392,7 +395,8 @@ def diff_before_after(
         return {"error": f"No function at {hex(ea)}"}
 
     # --- Before ---
-    before = decompile_function_safe(ea)
+    before_raw = decompile_function_safe(ea)
+    before, _ = _cap_decompile(before_raw)
 
     # --- Apply action ---
     applied: str
@@ -433,11 +437,14 @@ def diff_before_after(
         return {"error": f"Action {action!r} failed: {exc}"}
 
     # --- After ---
-    after = decompile_function_safe(ea)
+    after_raw = decompile_function_safe(ea)
+    after, _ = _cap_decompile(after_raw)
 
     return {
         "before": before,
         "after": after,
+        "before_truncated": before != before_raw if before_raw else False,
+        "after_truncated": after != after_raw if after_raw else False,
         "action_applied": applied,
         "changes_detected": before != after,
     }
