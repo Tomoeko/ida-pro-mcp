@@ -68,7 +68,7 @@ def _parse_bool_env(name: str, default: bool) -> bool:
 _LOG_REQUESTS = _parse_bool_env("IDA_MCP_LOG_REQUESTS", True)
 _LOG_SKIP_METHODS = {
     m.strip()
-    for m in os.getenv("IDA_MCP_LOG_SKIP_METHODS", "tools/call").split(",")
+    for m in os.getenv("IDA_MCP_LOG_SKIP_METHODS", "tools/call,prompts/list,tools/list,resources/list").split(",")
     if m.strip()
 }
 JsonRpcParams: TypeAlias = dict[str, Any] | list[Any] | None
